@@ -66,6 +66,12 @@ jobs:
       uses: actions/checkout@v4
       with:
         fetch-depth: 0
+    - name: Create Wap Project Directory
+      run: |
+        $directory = "${{ env.Wap_Project_Directory }}"
+        if (!(Test-Path -Path $directory)) {
+          New-Item -ItemType Directory -Path $directory
+        }
 
     # Install the .NET Core workload
     - name: Install .NET Core
@@ -76,6 +82,8 @@ jobs:
     # Add  MSBuild to the PATH: https://github.com/microsoft/setup-msbuild
     - name: Setup MSBuild.exe
       uses: microsoft/setup-msbuild@v2
+      with:
+        retry-limit: 3 # Specify a retry limit or handle retries in your runner
 
     # Execute all unit tests in the solution
     - name: Execute unit tests
