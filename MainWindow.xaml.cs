@@ -7,7 +7,8 @@ using System.Security;
 using System.IO;
 using System.Threading.Tasks;
 using System.Collections.Generic;
-using System.Text.Json;
+using Newtonsoft.Json;
+using Newtonsoft.Json.Linq;
 using System.Linq;
 
 namespace CrashDetectorwithAI
@@ -34,13 +35,13 @@ namespace CrashDetectorwithAI
                 if (File.Exists(appSettingsPath))
                 {
                     string jsonContent = File.ReadAllText(appSettingsPath);
-                    using (JsonDocument document = JsonDocument.Parse(jsonContent))
+                    JObject settings = JObject.Parse(jsonContent);
+                    
+                    // Try to get the modelPath property
+                    JToken? modelPathToken = settings["modelPath"];
+                    if (modelPathToken != null && modelPathToken.Type == JTokenType.String)
                     {
-                        if (document.RootElement.TryGetProperty("modelPath", out JsonElement modelPathElement) && 
-                            modelPathElement.ValueKind == JsonValueKind.String)
-                        {
-                            modelPath = modelPathElement.GetString() ?? string.Empty;
-                        }
+                        modelPath = modelPathToken.ToString();
                     }
                 }
 
