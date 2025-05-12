@@ -1,0 +1,35 @@
+name: Build CrashDetectorwithAI
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  build:
+    runs-on: windows-latest
+
+    steps:
+    - uses: actions/checkout@v3
+    
+    - name: Setup .NET
+      uses: actions/setup-dotnet@v3
+      with:
+        dotnet-version: 9.0.x
+        
+    - name: Restore dependencies
+      run: dotnet restore CrashDetectorwithAI.csproj
+      
+    - name: Build
+      run: dotnet build CrashDetectorwithAI.csproj --no-restore --configuration Release
+      
+    - name: Test
+      run: dotnet test CrashDetectorwithAI.csproj --no-build --verbosity normal --configuration Release
+      continue-on-error: true
+      
+    - name: Upload build artifacts
+      uses: actions/upload-artifact@v3
+      with:
+        name: CrashDetectorwithAI-app
+        path: bin/Release/net9.0-windows/
