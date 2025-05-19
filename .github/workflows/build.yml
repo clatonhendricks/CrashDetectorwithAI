@@ -23,6 +23,9 @@ jobs:
       
     - name: Build
       run: dotnet build CrashDetectorwithAI.csproj --no-restore --configuration Release
+
+    - name: List build output
+      run: dir bin\Release\ /s
       
     - name: Test
       run: dotnet test CrashDetectorwithAI.csproj --no-build --verbosity normal --configuration Release
