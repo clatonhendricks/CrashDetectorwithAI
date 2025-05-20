@@ -26,6 +26,7 @@ jobs:
 
     - name: List build output
       run: dir bin\Release\net9.0-windows /s
+      shell: cmd
       
     - name: Test
       run: dotnet test CrashDetectorwithAI.csproj --no-build --verbosity normal --configuration Release
