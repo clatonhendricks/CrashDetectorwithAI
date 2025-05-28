@@ -36,13 +36,16 @@ namespace CrashDetectorwithAI
                 {
                     string jsonContent = File.ReadAllText(appSettingsPath);
                     JObject settings = JObject.Parse(jsonContent);
-                    
-                    // Try to get the modelPath property
-                    JToken? modelPathToken = settings["modelPath"];
-                    if (modelPathToken != null && modelPathToken.Type == JTokenType.String)
-                    {
-                        modelPath = modelPathToken.ToString();
-                    }
+                             // Try to get the modelPath property
+            JToken? modelPathToken = settings["modelPath"];
+            if (modelPathToken != null && modelPathToken.Type == JTokenType.String)
+            {
+                // Get the path and normalize it
+                modelPath = Path.GetFullPath(Path.Combine(
+                    AppDomain.CurrentDomain.BaseDirectory,
+                    modelPathToken.ToString().TrimStart('\\')
+                ));
+            }
                 }
 
                 if (string.IsNullOrEmpty(modelPath))
