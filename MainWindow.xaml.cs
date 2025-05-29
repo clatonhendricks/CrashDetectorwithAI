@@ -7,9 +7,8 @@ using System.Security;
 using System.IO;
 using System.Threading.Tasks;
 using System.Collections.Generic;
-using Newtonsoft.Json;
-using Newtonsoft.Json.Linq;
 using System.Linq;
+using YamlDotNet.Serialization;
 
 namespace CrashDetectorwithAI
 {
@@ -17,40 +16,63 @@ namespace CrashDetectorwithAI
     {
         private string faultyBucketText = "Unknown";
         private string modelPath = string.Empty;
-        private Phi4ModelService? modelService = null;
-
-        public MainWindow()
+        private Phi4ModelService? modelService = null;        public MainWindow()
         {
             InitializeComponent();
             LoadSettings();
             PositionWindowAtBottomRight();
             LoadCrashDetails();
         }
-
+        
         private void LoadSettings()
         {
             try
             {
-                string appSettingsPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "appSettings.json");
-                if (File.Exists(appSettingsPath))
+                // Load settings from YAML file
+                string settingsPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "appSettings.yml");
+                if (File.Exists(settingsPath))
                 {
-                    string jsonContent = File.ReadAllText(appSettingsPath);
-                    JObject settings = JObject.Parse(jsonContent);
-                             // Try to get the modelPath property
-            JToken? modelPathToken = settings["modelPath"];
-            if (modelPathToken != null && modelPathToken.Type == JTokenType.String)
-            {
-                // Get the path and normalize it
-                modelPath = Path.GetFullPath(Path.Combine(
-                    AppDomain.CurrentDomain.BaseDirectory,
-                    modelPathToken.ToString().TrimStart('\\')
-                ));
-            }
+                    try
+                    {
+                        // Use YamlDotNet to parse the YAML file
+                        string yamlContent = File.ReadAllText(settingsPath);
+                        var deserializer = new YamlDotNet.Serialization.Deserializer();
+                        var settings = deserializer.Deserialize<Dictionary<string, string>>(yamlContent);
+                        
+                        if (settings != null && settings.TryGetValue("modelPath", out string? pathValue) && !string.IsNullOrEmpty(pathValue))
+                        {
+                            // Use the path directly - YAML handles backslashes correctly
+                            if (Path.IsPathRooted(pathValue))
+                            {
+                                // Use the absolute path directly
+                                modelPath = pathValue;
+                            }
+                            else
+                            {
+                                // Handle relative path by combining with base directory
+                                modelPath = Path.GetFullPath(Path.Combine(
+                                    AppDomain.CurrentDomain.BaseDirectory,
+                                    pathValue.TrimStart('\\', '/')
+                                ));
+                            }
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        MessageBox.Show($"Error loading YAML settings: {ex.Message}\nPlease check your appSettings.yml file.",
+                            "Configuration Error", MessageBoxButton.OK, MessageBoxImage.Warning);
+                    }
+                }
+                else
+                {
+                    // Show a message if the settings file doesn't exist
+                    MessageBox.Show("Configuration file appSettings.yml not found. Please create this file with a valid 'modelPath' property.",
+                        "Configuration Missing", MessageBoxButton.OK, MessageBoxImage.Warning);
                 }
 
                 if (string.IsNullOrEmpty(modelPath))
                 {
-                    MessageBox.Show("Model path not found in appSettings.json. Please update the configuration file with a valid model path.", 
+                    MessageBox.Show("Model path not found in appSettings.yml. Please update the configuration file with a valid model path.", 
                         "Configuration Error", MessageBoxButton.OK, MessageBoxImage.Warning);
                 }
             }
@@ -164,12 +186,10 @@ namespace CrashDetectorwithAI
                 if (askPhillyButton != null)
                 {
                     askPhillyButton.IsEnabled = false;
-                }
-
-                // Verify that we have a model path
+                }                // Verify that we have a model path
                 if (string.IsNullOrEmpty(modelPath))
                 {
-                    throw new InvalidOperationException("Model path is not configured. Please update appSettings.json with a valid model path.");
+                    throw new InvalidOperationException("Model path is not configured. Please update appSettings.yml with a valid model path.");
                 }
 
                 // Check if the model path exists
