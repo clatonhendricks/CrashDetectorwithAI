@@ -20,7 +20,7 @@ namespace CrashDetectorwithAI
         public Phi4ModelService(string modelPath, Action<string> logAction)
         {
             this.modelPath = modelPath;
-            this.logAction = logAction ?? (s => { }); // Default no-op if no logging action provided
+            this.logAction = logAction ?? (s => { }); 
         }
 
         public bool IsInitialized => isInitialized && model != null && tokenizer != null;
@@ -42,24 +42,22 @@ namespace CrashDetectorwithAI
                         throw new DirectoryNotFoundException($"Model directory not found: {modelPath}");
                     }
 
-                    // Find the ONNX model file directory (don't need file path directly with this API)
+                    // Find the ONNX model file directory 
                     logAction($"Loading model from: {modelPath}");
 
                     // Initialize model using the correct API
                     model = new Model(modelPath);
                     tokenizer = new Tokenizer(model);
                     isInitialized = true;
-
-                    // Stop timing
+                    
                     sw.Stop();
-
-                    // Log completion
+                   
                     logAction($"Model loaded in {sw.ElapsedMilliseconds} ms");
                 }
                 catch (Exception ex)
                 {
                     logAction($"Failed to load model: {ex.Message}");
-                    throw; // Re-throw to let caller handle the error
+                    throw; 
                 }
             });
         }
@@ -75,27 +73,25 @@ namespace CrashDetectorwithAI
 
                 try
                 {
-                    // Create a StringBuilder to collect the output
                     StringBuilder output = new StringBuilder();
                     
-                    // Encode the input prompt
                     var tokens = tokenizer.Encode(prompt);
                     
-                    // Set up the generator parameters
+                    
                     var generatorParams = new GeneratorParams(model);
                     generatorParams.SetSearchOption("max_length", 2048);
                     generatorParams.SetSearchOption("past_present_share_buffer", false);
                     
-                    // Create tokenizer stream for decoding
+                    
                     using var tokenizerStream = tokenizer.CreateStream();
                     
-                    // Create the generator
+                   
                     using var generator = new Generator(model, generatorParams);
                     
-                    // Append input tokens to the generator
+                    
                     generator.AppendTokens(tokens[0].ToArray());
                     
-                    // Log the token generation start
+                    
                     logAction("Generating response...");
                     
                     // Generate tokens one by one until done
@@ -117,7 +113,7 @@ namespace CrashDetectorwithAI
                 catch (Exception ex)
                 {
                     logAction($"Inference error: {ex.Message}");
-                    throw; // Re-throw to let caller handle the error
+                    throw; 
                 }
             });
         }
@@ -130,7 +126,7 @@ namespace CrashDetectorwithAI
             isInitialized = false;
         }
 
-        // Helper method to format a prompt with system and user messages
+       
         public static string FormatPrompt(string systemPrompt, string userPrompt)
         {
             return $"<|system|>{systemPrompt}<|end|><|user|>{userPrompt}<|end|><|assistant|>";
