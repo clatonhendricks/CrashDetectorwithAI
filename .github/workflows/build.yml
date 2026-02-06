@@ -9,6 +9,8 @@ on:
 jobs:
   build:
     runs-on: windows-latest
+    permissions:
+      contents: write
 
     steps:
     - uses: actions/checkout@v4
@@ -37,3 +39,20 @@ jobs:
       with:
         name: CrashDetectorwithAI-app
         path: bin/Release/net9.0-windows/
+
+    - name: Zip build output
+      if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+      run: Compress-Archive -Path bin\Release\net9.0-windows\* -DestinationPath CrashDetectorwithAI.zip
+      shell: pwsh
+
+    - name: Create or update Release
+      if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+      uses: softprops/action-gh-release@v2
+      with:
+        tag_name: latest
+        name: Latest Build
+        body: "Automated build from commit ${{ github.sha }}"
+        files: CrashDetectorwithAI.zip
+        make_latest: true
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
