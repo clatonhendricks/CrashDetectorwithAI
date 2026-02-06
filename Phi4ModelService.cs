@@ -4,7 +4,9 @@ using System.IO;
 using System.Text;
 using System.Threading.Tasks;
 using Microsoft.ML.OnnxRuntimeGenAI;
+using System.Collections.Generic;
 using System.Linq;
+using System.Threading.Channels;
 using System.Windows;
 
 namespace CrashDetectorwithAI
@@ -64,58 +66,69 @@ namespace CrashDetectorwithAI
 
         public async Task<string> GenerateResponseAsync(string prompt)
         {
-            return await Task.Run(() =>
+            var result = new StringBuilder();
+            await foreach (var token in GenerateResponseStreamingAsync(prompt))
             {
-                if (model == null || tokenizer == null)
-                {
-                    throw new InvalidOperationException("Model not initialized. Call InitializeAsync first.");
-                }
+                result.Append(token);
+            }
+            return result.ToString();
+        }
 
+        public async IAsyncEnumerable<string> GenerateResponseStreamingAsync(string prompt)
+        {
+            if (model == null || tokenizer == null)
+            {
+                throw new InvalidOperationException("Model not initialized. Call InitializeAsync first.");
+            }
+
+            var channel = System.Threading.Channels.Channel.CreateUnbounded<string>();
+
+            var generationTask = Task.Run(() =>
+            {
                 try
                 {
-                    StringBuilder output = new StringBuilder();
-                    
                     var tokens = tokenizer.Encode(prompt);
-                    
-                    
+
                     var generatorParams = new GeneratorParams(model);
                     generatorParams.SetSearchOption("max_length", 2048);
                     generatorParams.SetSearchOption("past_present_share_buffer", false);
-                    
-                    
+
                     using var tokenizerStream = tokenizer.CreateStream();
-                    
-                   
                     using var generator = new Generator(model, generatorParams);
-                    
-                    
+
                     generator.AppendTokens(tokens[0].ToArray());
-                    
-                    
+
                     logAction("Generating response...");
-                    
-                    // Generate tokens one by one until done
+
                     while (!generator.IsDone())
                     {
                         generator.GenerateNextToken();
                         string tokenText = tokenizerStream.Decode(generator.GetSequence(0)[^1]);
-                        output.Append(tokenText);
-                        
-                        // Check for end tokens
+
                         if (tokenText.Contains("<|end|>"))
                         {
                             break;
                         }
+
+                        channel.Writer.TryWrite(tokenText);
                     }
-                    
-                    return output.ToString();
                 }
                 catch (Exception ex)
                 {
                     logAction($"Inference error: {ex.Message}");
-                    throw; 
+                    channel.Writer.Complete(ex);
+                    return;
                 }
+
+                channel.Writer.Complete();
             });
+
+            await foreach (var token in channel.Reader.ReadAllAsync())
+            {
+                yield return token;
+            }
+
+            await generationTask;
         }
 
         public void Dispose()

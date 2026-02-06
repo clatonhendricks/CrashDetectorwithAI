@@ -222,8 +222,13 @@ namespace CrashDetectorwithAI
                 // Get response from Phi model
                 if (modelService.IsInitialized)
                 {
-                    string response = await modelService.GenerateResponseAsync(fullPrompt);
-                    CrashDetailsText.Text = $"Crash Analysis:\n\nFaulty Bucket: {faultyBucketText}\n\nPHILLY's Response:\n{response}";
+                    string header = $"Crash Analysis:\n\nFaulty Bucket: {faultyBucketText}\n\nPHILLY's Response:\n";
+                    CrashDetailsText.Text = header;
+                    
+                    await foreach (var token in modelService.GenerateResponseStreamingAsync(fullPrompt))
+                    {
+                        CrashDetailsText.Text += token;
+                    }
                 }
                 else
                 {
