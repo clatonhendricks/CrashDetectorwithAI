@@ -11,7 +11,7 @@ using System.Windows;
 
 namespace CrashDetectorwithAI
 {
-    public class Phi4ModelService : IDisposable
+    public class Phi4ModelService : IModelService
     {
         private string modelPath = string.Empty;
         private Model? model = null;
@@ -64,23 +64,14 @@ namespace CrashDetectorwithAI
             });
         }
 
-        public async Task<string> GenerateResponseAsync(string prompt)
-        {
-            var result = new StringBuilder();
-            await foreach (var token in GenerateResponseStreamingAsync(prompt))
-            {
-                result.Append(token);
-            }
-            return result.ToString();
-        }
-
-        public async IAsyncEnumerable<string> GenerateResponseStreamingAsync(string prompt)
+        public async IAsyncEnumerable<string> GenerateResponseStreamingAsync(string systemPrompt, string userPrompt)
         {
             if (model == null || tokenizer == null)
             {
                 throw new InvalidOperationException("Model not initialized. Call InitializeAsync first.");
             }
 
+            string prompt = FormatPrompt(systemPrompt, userPrompt);
             var channel = System.Threading.Channels.Channel.CreateUnbounded<string>();
 
             var generationTask = Task.Run(() =>

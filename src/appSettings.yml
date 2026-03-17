@@ -2,5 +2,12 @@
 # You can specify absolute paths with regular backslashes
 # Example: C:\Path\To\Model
 
-# Path to the Phi-4 model
+# AI Service selection: phi4 or ollama
+aiService: ollama
+
+# Path to the Phi-4 model (used when aiService is phi4)
 modelPath: C:\Path\To\Model\Phi4\phi-4-onnx\cpu_and_mobile\cpu-int4-rtn-block-32-acc-level-4
+
+# Ollama configuration (used when aiService is ollama)
+ollamaEndpoint: http://localhost:11434
+ollamaModel: Qwen3:4b

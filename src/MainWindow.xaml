@@ -140,6 +140,7 @@
                 </Setter.Value>
             </Setter>
         </Style>
+        
     </Window.Resources>
     
     <!-- Main window border with gradient and blur effect -->

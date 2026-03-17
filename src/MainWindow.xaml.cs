@@ -16,7 +16,12 @@ namespace CrashDetectorwithAI
     {
         private string faultyBucketText = "Unknown";
         private string modelPath = string.Empty;
-        private Phi4ModelService? modelService = null;        public MainWindow()
+        private string ollamaEndpoint = "http://localhost:11434";
+        private string ollamaModel = "llama3.2";
+        private string aiService = "phi4";
+        private IModelService? modelService = null;
+
+        public MainWindow()
         {
             InitializeComponent();
             LoadSettings();
@@ -28,33 +33,36 @@ namespace CrashDetectorwithAI
         {
             try
             {
-                // Load settings from YAML file
                 string settingsPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "appSettings.yml");
                 if (File.Exists(settingsPath))
                 {
                     try
                     {
-                        // Use YamlDotNet to parse the YAML file
                         string yamlContent = File.ReadAllText(settingsPath);
                         var deserializer = new YamlDotNet.Serialization.Deserializer();
                         var settings = deserializer.Deserialize<Dictionary<string, string>>(yamlContent);
                         
-                        if (settings != null && settings.TryGetValue("modelPath", out string? pathValue) && !string.IsNullOrEmpty(pathValue))
+                        if (settings != null)
                         {
-                            // Use the path directly - YAML handles backslashes correctly
-                            if (Path.IsPathRooted(pathValue))
+                            if (settings.TryGetValue("modelPath", out string? pathValue) && !string.IsNullOrEmpty(pathValue))
                             {
-                                // Use the absolute path directly
-                                modelPath = pathValue;
+                                if (Path.IsPathRooted(pathValue))
+                                    modelPath = pathValue;
+                                else
+                                    modelPath = Path.GetFullPath(Path.Combine(
+                                        AppDomain.CurrentDomain.BaseDirectory,
+                                        pathValue.TrimStart('\\', '/')
+                                    ));
                             }
-                            else
-                            {
-                                // Handle relative path by combining with base directory
-                                modelPath = Path.GetFullPath(Path.Combine(
-                                    AppDomain.CurrentDomain.BaseDirectory,
-                                    pathValue.TrimStart('\\', '/')
-                                ));
-                            }
+
+                            if (settings.TryGetValue("aiService", out string? serviceValue) && !string.IsNullOrEmpty(serviceValue))
+                                aiService = serviceValue.ToLowerInvariant();
+
+                            if (settings.TryGetValue("ollamaEndpoint", out string? endpointValue) && !string.IsNullOrEmpty(endpointValue))
+                                ollamaEndpoint = endpointValue;
+
+                            if (settings.TryGetValue("ollamaModel", out string? modelValue) && !string.IsNullOrEmpty(modelValue))
+                                ollamaModel = modelValue;
                         }
                     }
                     catch (Exception ex)
@@ -65,15 +73,8 @@ namespace CrashDetectorwithAI
                 }
                 else
                 {
-                    // Show a message if the settings file doesn't exist
-                    MessageBox.Show("Configuration file appSettings.yml not found. Please create this file with a valid 'modelPath' property.",
+                    MessageBox.Show("Configuration file appSettings.yml not found. Please create this file with a valid configuration.",
                         "Configuration Missing", MessageBoxButton.OK, MessageBoxImage.Warning);
-                }
-
-                if (string.IsNullOrEmpty(modelPath))
-                {
-                    MessageBox.Show("Model path not found in appSettings.yml. Please update the configuration file with a valid model path.", 
-                        "Configuration Error", MessageBoxButton.OK, MessageBoxImage.Warning);
                 }
             }
             catch (Exception ex)
@@ -180,75 +181,67 @@ namespace CrashDetectorwithAI
         {
             try
             {
-                // Show loading indicator and disable button
                 CrashDetailsText.Text += "\n\nAsking PHILLY for help...";
                 var askPhillyButton = sender as Button;
                 if (askPhillyButton != null)
-                {
                     askPhillyButton.IsEnabled = false;
-                }                // Verify that we have a model path
-                if (string.IsNullOrEmpty(modelPath))
-                {
-                    throw new InvalidOperationException("Model path is not configured. Please update appSettings.yml with a valid model path.");
-                }
 
-                // Check if the model path exists
-                if (!Directory.Exists(modelPath))
-                {
-                    throw new DirectoryNotFoundException($"Model directory not found: {modelPath}");
-                }
-
-                // Create the prompt with the faulty bucket information
                 string systemPrompt = "You are a helpful Windows technical support assistant. Provide brief explanations and direct solutions.";
                 string userPrompt = $"Can you briefly explain what this bucket error code means and how to resolve in short brief steps: {faultyBucketText}";
-                string fullPrompt = Phi4ModelService.FormatPrompt(systemPrompt, userPrompt);
-                
-                // Initialize model service if not already created
+
                 if (modelService == null)
                 {
-                    // Create the model service with a logging action that updates the UI
-                    modelService = new Phi4ModelService(modelPath, message => 
+                    if (aiService == "ollama")
                     {
-                        Dispatcher.Invoke(() => CrashDetailsText.Text += $"\n{message}");
-                    });
-                    
-                    // Initialize the model
+                        modelService = new OllamaModelService(ollamaEndpoint, ollamaModel, message =>
+                        {
+                            Dispatcher.Invoke(() => CrashDetailsText.Text += $"\n{message}");
+                        });
+                    }
+                    else
+                    {
+                        if (string.IsNullOrEmpty(modelPath))
+                            throw new InvalidOperationException("Model path is not configured. Please update appSettings.yml with a valid model path.");
+
+                        if (!Directory.Exists(modelPath))
+                            throw new DirectoryNotFoundException($"Model directory not found: {modelPath}");
+
+                        modelService = new Phi4ModelService(modelPath, message =>
+                        {
+                            Dispatcher.Invoke(() => CrashDetailsText.Text += $"\n{message}");
+                        });
+                    }
+
                     await modelService.InitializeAsync();
                 }
 
-                // Ensure the window height can accommodate the response
                 EnsureWindowSizeForResponse();
 
-                // Get response from Phi model
                 if (modelService.IsInitialized)
                 {
                     string header = $"Crash Analysis:\n\nFaulty Bucket: {faultyBucketText}\n\nPHILLY's Response:\n";
                     CrashDetailsText.Text = header;
                     
-                    await foreach (var token in modelService.GenerateResponseStreamingAsync(fullPrompt))
+                    await foreach (var token in modelService.GenerateResponseStreamingAsync(systemPrompt, userPrompt))
                     {
                         CrashDetailsText.Text += token;
                     }
                 }
                 else
                 {
-                    // Fallback to predefined response if model not loaded
                     CrashDetailsText.Text = $"Crash Analysis:\n\nFaulty Bucket: {faultyBucketText}\n\nPHILLY's Response:\n{GetFallbackResponse()}\n\n(Model could not be loaded)";
                 }
             }
             catch (Exception ex)
             {
-                MessageBox.Show($"Error querying Phi model: {ex.Message}", "Model Error", MessageBoxButton.OK, MessageBoxImage.Error);
-                CrashDetailsText.Text += $"\n\nError querying Phi model: {ex.Message}";
+                MessageBox.Show($"Error querying AI model: {ex.Message}", "Model Error", MessageBoxButton.OK, MessageBoxImage.Error);
+                CrashDetailsText.Text += $"\n\nError querying AI model: {ex.Message}";
             }
             finally
             {
-                // Re-enable button
                 var askPhillyButton = sender as Button;
                 if (askPhillyButton != null)
-                {
                     askPhillyButton.IsEnabled = true;
-                }
             }
         }
 
@@ -299,9 +292,7 @@ namespace CrashDetectorwithAI
 
         private void CloseButton_Click(object sender, RoutedEventArgs e)
         {
-            // Dispose of the model service if it exists
             modelService?.Dispose();
-            
             Close();
         }
 
